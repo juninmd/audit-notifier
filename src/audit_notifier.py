@@ -102,8 +102,9 @@ def classify(event: dict) -> tuple[str, str] | None:
     ):
         return ("HIGH", f"{resource} lido em namespace sensivel")
 
-    if verb in WRITE_VERBS and namespace in SENSITIVE_NAMESPACES and resource not in NOISY_RESOURCES:
-        return ("MEDIUM", f"Escrita em namespace sensivel: {resource}")
+    resource_full = f"{resource}/{subresource}" if subresource else resource
+    if verb in WRITE_VERBS and namespace in SENSITIVE_NAMESPACES and resource_full not in NOISY_RESOURCES:
+        return ("MEDIUM", f"Escrita em namespace sensivel: {resource_full}")
 
     return None
 

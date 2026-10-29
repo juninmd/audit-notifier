@@ -23,6 +23,14 @@ class AuditNotifierTests(unittest.TestCase):
         event = {"verb": "create", "objectRef": {"resource": "pods", "subresource": "exec"}}
         self.assertEqual(audit_notifier.classify(event), ("HIGH", "Shell direto no container"))
 
+    def test_status_subresource_is_noise_in_sensitive_namespace(self) -> None:
+        event = {"verb": "update", "objectRef": {"resource": "pods", "subresource": "status", "namespace": "monitoring"}}
+        self.assertIsNone(audit_notifier.classify(event))
+
+    def test_pod_write_without_subresource_still_alerts_in_sensitive_namespace(self) -> None:
+        event = {"verb": "delete", "objectRef": {"resource": "pods", "namespace": "kube-system"}}
+        self.assertEqual(audit_notifier.classify(event), ("MEDIUM", "Escrita em namespace sensivel: pods"))
+
     def test_process_event_sends_once(self) -> None:
         event = {
             "stage": "RequestReceived",
