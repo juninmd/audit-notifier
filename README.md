@@ -1,5 +1,9 @@
 # audit-notifier
 
+<p align="center">
+  <img src="docs/readme/hero.png" alt="Illustrative banner for audit-notifier (mockup with fictitious data)" width="100%">
+</p>
+
 Kubernetes audit webhook that turns risky cluster actions into deduplicated Telegram alerts.
 
 `kubectl exec` into a pod, a RoleBinding edit, a Secret read in `kube-system` — all of it lands in the audit log and nobody reads it. This service subscribes to that stream through the native [audit webhook](https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/) backend, classifies each event by severity, throws away the noise and the repeats, and pushes what is left to a Telegram chat.
@@ -231,6 +235,24 @@ Dockerfile               # python:3.12-alpine, non-root, no dependencies
 - **No dependencies.** `http.server`, `urllib.request`, `hashlib`, `json`, `logging`. That is the whole stack. No `requirements.txt`, no virtualenv, no supply chain to audit.
 - **One file.** Classification tables are module-level dicts; adding a resource means adding a line to `SENSITIVE_WRITE_RESOURCES`.
 - **Single-threaded by design.** `HTTPServer`, not `ThreadingHTTPServer`: one audit batch is handled at a time, and each alert blocks on a Telegram call with a 10 s timeout.
+
+## Screenshots
+
+> [!NOTE]
+> **Illustrative mockups.** The screens below were rendered from HTML with fictitious data (Playwright). They are not captures of a real installation.
+
+<p align="center">
+  <img src="docs/readme/alerts.png" alt="Telegram alerts — illustrative mockup with fictitious data" width="100%">
+  <br>
+  <sub>Telegram alerts — fictitious data.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/readme/dedupe.png" alt="Dedupe and delivery — illustrative mockup with fictitious data" width="100%">
+  <br>
+  <sub>Dedupe and delivery — fictitious data.</sub>
+</p>
+
 
 ## Limitations
 
