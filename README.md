@@ -136,7 +136,8 @@ Response:
 | Status | When |
 |---|---|
 | `200` | body parsed; `items` may be `0` and `notified` may be `0` |
-| `400` | body is not valid JSON (`{"error": "invalid json"}`) |
+| `400` | body is not valid JSON/UTF-8 (`{"error": "invalid json"}`), is not an object with an `items` list, or has a missing/negative `Content-Length` |
+| `413` | `Content-Length` above `MAX_BODY_BYTES` (`{"error": "payload too large"}`) |
 | `404` | any other path (`{"error": "not found"}`) |
 
 A malformed event inside `items` is logged and skipped; it does not fail the batch. Telegram failures are logged as well and do **not** change the `200` — a failed send is not retried.
@@ -171,6 +172,7 @@ All configuration is environment variables, read once at import time.
 | `GRAFANA_URL` | `https://grafana.antonio-code.duckdns.org` | Link printed in every alert |
 | `ARGOCD_URL` | `https://argocd.antonio-code.duckdns.org` | Link printed in every alert |
 | `DEDUP_TTL_SECONDS` | `120` | How long a repeated event stays suppressed |
+| `MAX_BODY_BYTES` | `10485760` | Largest `POST /audit` body accepted (10 MiB); above it the service answers `413` |
 | `PORT` | `8080` | Listen port |
 | `LOG_LEVEL` | `INFO` | Standard `logging` level name |
 

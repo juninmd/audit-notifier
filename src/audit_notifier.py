@@ -20,6 +20,8 @@ TELEGRAM_CHAT = os.environ.get("TELEGRAM_CHAT_ID", "")
 GRAFANA_URL = os.environ.get("GRAFANA_URL", "https://grafana.antonio-code.duckdns.org")
 ARGOCD_URL = os.environ.get("ARGOCD_URL", "https://argocd.antonio-code.duckdns.org")
 DEDUP_TTL = int(os.environ.get("DEDUP_TTL_SECONDS", "120"))
+# The apiserver batches events (400 by default); 10 MiB is far above that and stops memory abuse.
+MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", str(10 * 1024 * 1024)))
 
 INTERACTIVE_SUBRESOURCES = {
     "exec": ("HIGH", "Shell direto no container"),
@@ -197,21 +199,36 @@ class AuditHandler(BaseHTTPRequestHandler):
             self.respond(404, {"error": "not found"})
             return
 
-        length = int(self.headers.get("Content-Length", 0))
+        try:
+            length = int(self.headers.get("Content-Length", ""))
+        except ValueError:
+            length = -1
+        if length < 0:
+            self.respond(400, {"error": "invalid content-length"})
+            return
+        if length > MAX_BODY_BYTES:
+            self.respond(413, {"error": "payload too large"})
+            return
+
         try:
             payload = json.loads(self.rfile.read(length))
-        except json.JSONDecodeError:
+        except ValueError:  # JSONDecodeError and UnicodeDecodeError
             self.respond(400, {"error": "invalid json"})
             return
 
+        items = payload.get("items", []) if isinstance(payload, dict) else None
+        if not isinstance(items, list):
+            self.respond(400, {"error": "expected an EventList object with an items list"})
+            return
+
         notified = 0
-        for item in payload.get("items", []):
+        for item in items:
             try:
                 notified += int(process_event(item))
             except Exception:
                 LOG.exception("failed to process audit event")
 
-        self.respond(200, {"status": "ok", "items": len(payload.get("items", [])), "notified": notified})
+        self.respond(200, {"status": "ok", "items": len(items), "notified": notified})
 
     def respond(self, status: int, payload: dict) -> None:
         body = json.dumps(payload).encode()
