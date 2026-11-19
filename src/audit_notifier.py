@@ -157,14 +157,18 @@ def process_event(event: dict) -> bool:
         f"Grafana: {GRAFANA_URL}\n"
         f"ArgoCD: {ARGOCD_URL}"
     )
-    send_telegram(text)
+    if not send_telegram(text):
+        # Not delivered: forget the key so the next identical event can alert again
+        _dedup.pop(key, None)
+        return False
     return True
 
 
-def send_telegram(text: str) -> None:
+def send_telegram(text: str) -> bool:
+    """Returns True only when Telegram accepted the message."""
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT:
         LOG.warning("Telegram env missing; notification skipped")
-        return
+        return False
 
     payload = json.dumps(
         {"chat_id": TELEGRAM_CHAT, "text": text, "disable_web_page_preview": True}
@@ -178,10 +182,12 @@ def send_telegram(text: str) -> None:
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
             LOG.debug("Telegram response: %s", response.status)
+            return True
     except urllib.error.HTTPError as exc:
         LOG.error("Telegram HTTP error: %s", exc.code)
     except OSError as exc:
         LOG.error("Telegram error: %s", exc)
+    return False
 
 
 class AuditHandler(BaseHTTPRequestHandler):

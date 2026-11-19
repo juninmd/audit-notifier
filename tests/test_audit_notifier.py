@@ -45,6 +45,18 @@ class AuditNotifierTests(unittest.TestCase):
             self.assertFalse(audit_notifier.process_event(event))
         send.assert_called_once()
 
+    def test_failed_delivery_does_not_suppress_the_next_identical_event(self) -> None:
+        event = {
+            "stage": "RequestReceived",
+            "verb": "create",
+            "user": {"username": "junin"},
+            "objectRef": {"resource": "pods", "subresource": "exec", "namespace": "apps"},
+        }
+        with patch.object(audit_notifier, "send_telegram", side_effect=[False, True]) as send:
+            self.assertFalse(audit_notifier.process_event(event))  # Telegram down
+            self.assertTrue(audit_notifier.process_event(event))  # retried, not deduplicated
+        self.assertEqual(send.call_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()
