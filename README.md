@@ -27,7 +27,7 @@ It is one Python file (189 lines), with no runtime dependencies beyond the stand
 | `secrets` or `configmaps` read | HIGH | `<resource>` lido em namespace sensivel |
 | any other write in a sensitive namespace | MEDIUM | Escrita em namespace sensivel: `<resource>` |
 
-"Write" means `create`, `update`, `patch`, `delete` or `deletecollection`. Sensitive namespaces are `kube-system`, `monitoring`, `argocd` and `databases`. The last rule is a catch-all and deliberately skips the noisy resources `events`, `pods/status`, `endpoints` and `endpointslices`.
+"Write" means `create`, `update`, `patch`, `delete` or `deletecollection`; "read" means `get`, `list` or `watch`. Sensitive namespaces are `kube-system`, `monitoring`, `argocd` and `databases`. The last rule is a catch-all and deliberately skips the noisy resources `events`, `pods/status`, `endpoints` and `endpointslices`.
 
 The classification order matters: interactive subresources win over everything, then sensitive writes, then reads of Secrets/ConfigMaps, then the catch-all. A first match returns, so one event produces at most one alert.
 

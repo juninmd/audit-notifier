@@ -31,6 +31,10 @@ class AuditNotifierTests(unittest.TestCase):
         event = {"verb": "delete", "objectRef": {"resource": "pods", "namespace": "kube-system"}}
         self.assertEqual(audit_notifier.classify(event), ("MEDIUM", "Escrita em namespace sensivel: pods"))
 
+    def test_watching_secrets_in_sensitive_namespace_alerts_like_a_read(self) -> None:
+        event = {"verb": "watch", "objectRef": {"resource": "secrets", "namespace": "argocd"}}
+        self.assertEqual(audit_notifier.classify(event), ("HIGH", "secrets lido em namespace sensivel"))
+
     def test_process_event_sends_once(self) -> None:
         event = {
             "stage": "RequestReceived",
