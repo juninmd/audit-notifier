@@ -3,11 +3,12 @@ import hashlib
 import json
 import logging
 import os
+import threading
 import time
 import urllib.error
 import urllib.request
 from datetime import datetime
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 logging.basicConfig(
     level=getattr(logging, os.environ.get("LOG_LEVEL", "INFO"), logging.INFO),
@@ -53,6 +54,8 @@ IGNORED_USERNAMES = {
 }
 
 _dedup: dict[str, float] = {}
+# Requests run on their own threads, so the dedup cache is shared state.
+_dedup_lock = threading.Lock()
 
 
 def ignore_user(user: dict) -> bool:
@@ -64,15 +67,16 @@ def ignore_user(user: dict) -> bool:
 
 def is_duplicate(key: str) -> bool:
     now = time.monotonic()
-    for cached_key in list(_dedup):
-        if now - _dedup[cached_key] > DEDUP_TTL * 2:
-            del _dedup[cached_key]
+    with _dedup_lock:
+        for cached_key in list(_dedup):
+            if now - _dedup[cached_key] > DEDUP_TTL * 2:
+                del _dedup[cached_key]
 
-    if key in _dedup and now - _dedup[key] < DEDUP_TTL:
-        return True
+        if key in _dedup and now - _dedup[key] < DEDUP_TTL:
+            return True
 
-    _dedup[key] = now
-    return False
+        _dedup[key] = now
+        return False
 
 
 def fmt_ts(value: str) -> str:
@@ -159,7 +163,8 @@ def process_event(event: dict) -> bool:
     )
     if not send_telegram(text):
         # Not delivered: forget the key so the next identical event can alert again
-        _dedup.pop(key, None)
+        with _dedup_lock:
+            _dedup.pop(key, None)
         return False
     return True
 
@@ -245,9 +250,16 @@ class AuditHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
+def make_server(host: str, port: int) -> ThreadingHTTPServer:
+    # A batch waiting on Telegram (10 s per message) must not block /health or the next batch.
+    server = ThreadingHTTPServer((host, port), AuditHandler)
+    server.daemon_threads = True
+    return server
+
+
 def main() -> None:
     port = int(os.environ.get("PORT", "8080"))
-    server = HTTPServer(("0.0.0.0", port), AuditHandler)
+    server = make_server("0.0.0.0", port)
     LOG.info("audit-notifier listening on %d", port)
     server.serve_forever()
 

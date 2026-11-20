@@ -4,7 +4,6 @@ import json
 import pathlib
 import threading
 import unittest
-from http.server import HTTPServer
 from unittest.mock import patch
 
 MODULE_PATH = pathlib.Path(__file__).resolve().parents[1] / "src" / "audit_notifier.py"
@@ -24,7 +23,7 @@ EXEC_EVENT = {
 class WebhookTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.server = HTTPServer(("127.0.0.1", 0), audit_notifier.AuditHandler)
+        cls.server = audit_notifier.make_server("127.0.0.1", 0)
         cls.port = cls.server.server_address[1]
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
 
@@ -63,6 +62,20 @@ class WebhookTests(unittest.TestCase):
         with patch.object(audit_notifier, "MAX_BODY_BYTES", 10):
             status, _ = self.post(b'{"items": []}')
         self.assertEqual(status, 413)
+
+    def test_health_answers_while_a_batch_waits_on_telegram(self) -> None:
+        release = threading.Event()
+        with patch.object(audit_notifier, "send_telegram", side_effect=lambda _: release.wait(10)):
+            batch = threading.Thread(target=self.post, args=(json.dumps({"items": [EXEC_EVENT]}).encode(),))
+            batch.start()
+            try:
+                conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=2)
+                conn.request("GET", "/health")
+                self.assertEqual(conn.getresponse().status, 200)
+                conn.close()
+            finally:
+                release.set()
+                batch.join(5)
 
     def test_bad_content_length_is_a_400(self) -> None:
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
