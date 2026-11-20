@@ -43,6 +43,8 @@ SENSITIVE_WRITE_RESOURCES = {
 
 SENSITIVE_READ_RESOURCES = {"secrets", "configmaps"}
 SENSITIVE_NAMESPACES = {"kube-system", "monitoring", "argocd", "databases"}
+# watch streams every change, values included: as much a read as get/list
+READ_VERBS = {"get", "list", "watch"}
 WRITE_VERBS = {"create", "update", "patch", "delete", "deletecollection"}
 NOISY_RESOURCES = {"events", "pods/status", "endpoints", "endpointslices"}
 IGNORED_PREFIXES = ("system:serviceaccount:", "system:node:")
@@ -102,7 +104,7 @@ def classify(event: dict) -> tuple[str, str] | None:
         return SENSITIVE_WRITE_RESOURCES[resource]
 
     if (
-        verb in {"get", "list"}
+        verb in READ_VERBS
         and resource in SENSITIVE_READ_RESOURCES
         and namespace in SENSITIVE_NAMESPACES
     ):
