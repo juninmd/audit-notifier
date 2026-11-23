@@ -71,6 +71,26 @@ class AuditNotifierTests(unittest.TestCase):
             self.assertFalse(audit_notifier.is_duplicate("fresh"))  # past TTL: alerts again
         self.assertEqual(list(audit_notifier._dedup), ["new", "fresh"])
 
+    def test_fmt_ts_converts_offsets_to_utc(self) -> None:
+        self.assertEqual(audit_notifier.fmt_ts("2026-07-03T10:00:00+03:00"), "03/07 07:00:00 UTC")
+        self.assertEqual(audit_notifier.fmt_ts("2026-07-03T10:00:00Z"), "03/07 10:00:00 UTC")
+
+    def test_fmt_ts_tolerates_missing_or_non_string_values(self) -> None:
+        self.assertEqual(audit_notifier.fmt_ts(None), "-")
+        self.assertEqual(audit_notifier.fmt_ts(123), "-")
+
+    def test_null_timestamp_still_alerts_and_does_not_poison_dedup(self) -> None:
+        event = {
+            "stage": "RequestReceived",
+            "verb": "create",
+            "user": {"username": "junin"},
+            "objectRef": {"resource": "pods", "subresource": "exec", "namespace": "apps"},
+            "requestReceivedTimestamp": None,
+        }
+        with patch.object(audit_notifier, "send_telegram", return_value=True) as send:
+            self.assertTrue(audit_notifier.process_event(event))
+        self.assertIn("Quando: -", send.call_args.args[0])
+
 
 if __name__ == "__main__":
     unittest.main()

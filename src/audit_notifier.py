@@ -7,7 +7,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 logging.basicConfig(
@@ -86,13 +86,17 @@ def is_duplicate(key: str) -> bool:
         return False
 
 
-def fmt_ts(value: str) -> str:
+def fmt_ts(value: object) -> str:
+    # The payload is untrusted: null or a number must not raise after the dedup key is set
+    if not isinstance(value, str) or not value:
+        return "-"
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).strftime(
-            "%d/%m %H:%M:%S UTC"
-        )
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
-        return value or "-"
+        return value
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).strftime("%d/%m %H:%M:%S UTC")
 
 
 def classify(event: dict) -> tuple[str, str] | None:
