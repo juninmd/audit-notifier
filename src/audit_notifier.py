@@ -70,13 +70,18 @@ def ignore_user(user: dict) -> bool:
 def is_duplicate(key: str) -> bool:
     now = time.monotonic()
     with _dedup_lock:
-        for cached_key in list(_dedup):
-            if now - _dedup[cached_key] > DEDUP_TTL * 2:
-                del _dedup[cached_key]
+        # Insertion order matches timestamp order (monotonic clock, re-insert on write),
+        # so expired keys sit at the front: prune them without scanning the whole cache.
+        while _dedup:
+            oldest = next(iter(_dedup))
+            if now - _dedup[oldest] <= DEDUP_TTL * 2:
+                break
+            del _dedup[oldest]
 
         if key in _dedup and now - _dedup[key] < DEDUP_TTL:
             return True
 
+        _dedup.pop(key, None)
         _dedup[key] = now
         return False
 
