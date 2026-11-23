@@ -61,6 +61,14 @@ class AuditNotifierTests(unittest.TestCase):
             self.assertTrue(audit_notifier.process_event(event))  # retried, not deduplicated
         self.assertEqual(send.call_count, 2)
 
+    def test_dedup_prunes_expired_keys_and_keeps_fresh_ones(self) -> None:
+        ttl = audit_notifier.DEDUP_TTL
+        with patch.object(audit_notifier.time, "monotonic", side_effect=[0.0, 1.0, ttl * 2 + 0.5, ttl * 2 + 0.6]):
+            self.assertFalse(audit_notifier.is_duplicate("old"))
+            self.assertFalse(audit_notifier.is_duplicate("fresh"))
+            self.assertFalse(audit_notifier.is_duplicate("new"))  # prunes "old" only
+            self.assertFalse(audit_notifier.is_duplicate("fresh"))  # past TTL: alerts again
+        self.assertEqual(list(audit_notifier._dedup), ["new", "fresh"])
 
     def test_fmt_ts_converts_offsets_to_utc(self) -> None:
         self.assertEqual(audit_notifier.fmt_ts("2026-07-03T10:00:00+03:00"), "03/07 07:00:00 UTC")
