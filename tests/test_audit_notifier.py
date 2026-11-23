@@ -61,7 +61,6 @@ class AuditNotifierTests(unittest.TestCase):
             self.assertTrue(audit_notifier.process_event(event))  # retried, not deduplicated
         self.assertEqual(send.call_count, 2)
 
-
     def test_dedup_prunes_expired_keys_and_keeps_fresh_ones(self) -> None:
         ttl = audit_notifier.DEDUP_TTL
         with patch.object(audit_notifier.time, "monotonic", side_effect=[0.0, 1.0, ttl * 2 + 0.5, ttl * 2 + 0.6]):
